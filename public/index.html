@@ -1,364 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>1,000,000 Checkboxes</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
-body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e0e0e0; display: flex; flex-direction: column; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1,000,000 Checkboxes</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-#header {
-  flex-shrink: 0;
-  background: #0a0a0a; border-bottom: 1px solid #222;
-  padding: 8px 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; z-index: 10;
-}
-#header h1 { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: #00ff88; text-transform: uppercase; }
-.stat { font-size: 11px; color: #555; }
-.stat span { color: #00ff88; font-weight: 700; }
-#status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff4444; flex-shrink: 0; }
-#status-dot.connected { background: #00ff88; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
-#status-label { font-size: 10px; color: #444; }
-#controls { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
-#controls button {
-  font-family: 'Courier New', monospace; font-size: 10px;
-  background: transparent; border: 1px solid #2a2a2a; color: #666;
-  padding: 3px 8px; cursor: pointer; border-radius: 2px; transition: all 0.1s;
-}
-#controls button:hover { border-color: #00ff88; color: #00ff88; }
+        body {
+            background: #0d0d0d;
+            font-family: monospace;
+            color: #ccc;
+        }
 
-#progress-bar { flex-shrink: 0; height: 2px; background: #111; }
-#progress-fill { height: 100%; background: #00ff88; width: 0%; }
+        #header {
+            position: sticky;
+            top: 0;
+            background: #0d0d0d;
+            border-bottom: 1px solid #222;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
 
-#canvas-wrap { flex: 1; overflow: hidden; position: relative; }
-canvas { display: block; cursor: pointer; }
+        #header h1 { font-size: 14px; color: #fff; }
+        #stats { font-size: 12px; color: #555; }
+        #stats b { color: #00ff88; }
 
-#activity-log {
-  position: absolute; bottom: 0; right: 0; width: 220px;
-  background: rgba(10,10,10,0.92); border-top: 1px solid #1a1a1a; border-left: 1px solid #1a1a1a;
-  font-size: 10px; max-height: 100px; overflow-y: auto; padding: 5px;
-}
-.log-entry { color: #3a3a3a; padding: 1px 0; }
-.log-entry.mine { color: #00ff88; }
-.log-entry.remote { color: #00aaff; }
+        #container {
+            padding: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
 
-#toast {
-  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-  background: #111; border: 1px solid #00ff88; color: #00ff88;
-  font-size: 10px; padding: 5px 14px; border-radius: 3px;
-  opacity: 0; transition: opacity 0.2s; pointer-events: none;
-}
-#toast.show { opacity: 1; }
-</style>
+        input[type="checkbox"] { display: none; }
+
+        label {
+            width: 18px;
+            height: 18px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        label svg { display: none; }
+
+        input[type="checkbox"]:checked + label {
+            background: #00ff88;
+            border-color: #00cc66;
+        }
+
+        input[type="checkbox"]:checked + label svg {
+            display: block;
+        }
+
+        #loader {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #444;
+        }
+    </style>
 </head>
 <body>
 
-<div id="header">
-  <div id="status-dot"></div>
-  <span id="status-label">disconnected</span>
-  <h1>1,000,000 checkboxes</h1>
-  <div class="stat">checked: <span id="checked-count">0</span></div>
-  <div class="stat">total: <span>1,000,000</span></div>
-  <div class="stat">users: <span id="user-count">1</span></div>
-  <div id="controls">
-    <button onclick="checkAll()">check all</button>
-    <button onclick="uncheckAll()">uncheck all</button>
-    <button onclick="connectWS()">reconnect</button>
-  </div>
-</div>
-<div id="progress-bar"><div id="progress-fill"></div></div>
-<div id="canvas-wrap">
-  <canvas id="c"></canvas>
-  <div id="activity-log"></div>
-  <div id="toast"></div>
-</div>
+    <div id="header">
+        <h1>1,000,000 checkboxes</h1>
+        <div id="stats">checked: <b id="count">0</b> / 1,000,000</div>
+    </div>
 
-<script>
-const TOTAL = 1_000_000;
-const CELL = 14;        // px per cell (box + gap)
-const PAD  = 1;         // gap between cells
-const BOX  = CELL - PAD; // drawn box size = 13px
+    <div id="container"></div>
+    <div id="loader">loading...</div>
 
-// Compact bitset — 1 bit per checkbox
-const state = new Uint8Array(Math.ceil(TOTAL / 8));
-let checkedCount = 0;
+    <script>
+        const TOTAL = 1000000
+        const BATCH = 2000
 
-function getBit(i)      { return (state[i >> 3] >> (i & 7)) & 1; }
-function setBit(i, v) {
-  const was = getBit(i);
-  if (v) state[i >> 3] |=  (1 << (i & 7));
-  else   state[i >> 3] &= ~(1 << (i & 7));
-  if (v && !was) checkedCount++;
-  if (!v && was) checkedCount--;
-}
+        const state = new Uint8Array(TOTAL)
+        let loaded = 0
+        let checkedCount = 0
+        let isLoading = false
 
-// Canvas setup
-const wrap   = document.getElementById('canvas-wrap');
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-let W = 0, H = 0, COLS = 0, ROWS = 0, scrollY = 0;
-let dpr = window.devicePixelRatio || 1;
+        const countEl = document.getElementById('count')
+        const container = document.getElementById('container')
+        const loader = document.getElementById('loader')
 
-function resize() {
-  W = wrap.clientWidth;
-  H = wrap.clientHeight;
-  COLS = Math.floor(W / CELL);
-  ROWS = Math.ceil(TOTAL / COLS);
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  ctx.scale(dpr, dpr);
-  clampScroll();
-  draw();
-}
+        function loadMore() {
+            if (isLoading || loaded >= TOTAL) return
+            isLoading = true
 
-function clampScroll() {
-  const maxScroll = Math.max(0, ROWS * CELL - H);
-  scrollY = Math.max(0, Math.min(scrollY, maxScroll));
-}
+            const end = Math.min(loaded + BATCH, TOTAL)
+            const frag = document.createDocumentFragment()
 
-// ── Drawing ──────────────────────────────────────────────────────────────────
-// Only draw cells visible in the viewport — this is the key optimization.
+            for (let i = loaded; i < end; i++) {
+                const input = document.createElement('input')
+                input.type = 'checkbox'
+                input.id = 'cb' + i
 
-const COLOR_OFF      = '#111111';
-const COLOR_BOX_BG   = '#1a1a1a';
-const COLOR_BORDER   = '#2a2a2a';
-const COLOR_CHECKED_BG = '#00ff88';
-const COLOR_TICK     = '#000000';
+                const label = document.createElement('label')
+                label.htmlFor = 'cb' + i
+                label.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <polyline points="1.5,5 4,7.5 8.5,2" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>`
 
-let rafPending = false;
-function scheduleDraw() {
-  if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; draw(); }); }
-}
+                input.addEventListener('change', () => {
+                    state[i] = input.checked ? 1 : 0
+                    input.checked ? checkedCount++ : checkedCount--
+                    countEl.textContent = checkedCount.toLocaleString()
+                })
 
-function drawTick(x, y, size) {
-  const pad = size * 0.2;
-  ctx.beginPath();
-  ctx.moveTo(x + pad,          y + size * 0.52);
-  ctx.lineTo(x + size * 0.42,  y + size - pad);
-  ctx.lineTo(x + size - pad,   y + pad);
-  ctx.stroke();
-}
+                frag.appendChild(input)
+                frag.appendChild(label)
+            }
 
-function draw() {
-  ctx.clearRect(0, 0, W, H);
+            container.appendChild(frag)
+            loaded = end
+            isLoading = false
 
-  const firstRow = Math.floor(scrollY / CELL);
-  const lastRow  = Math.min(ROWS - 1, Math.ceil((scrollY + H) / CELL));
+            if (loaded >= TOTAL) {
+                loader.textContent = 'all 1,000,000 loaded'
+            } else {
+                loader.textContent = `loaded ${loaded.toLocaleString()} / 1,000,000`
+            }
+        }
 
-  // Draw all box backgrounds + borders in batch
-  ctx.strokeStyle = COLOR_BORDER;
-  ctx.lineWidth = 0.5;
+        // load first batch immediately
+        loadMore()
 
-  for (let row = firstRow; row <= lastRow; row++) {
-    const y = row * CELL - scrollY;
-    for (let col = 0; col < COLS; col++) {
-      const i = row * COLS + col;
-      if (i >= TOTAL) break;
-      const x = col * CELL;
-      const on = getBit(i);
-      ctx.fillStyle = on ? COLOR_CHECKED_BG : COLOR_BOX_BG;
-      ctx.fillRect(x, y, BOX, BOX);
-      ctx.strokeStyle = on ? '#00cc66' : COLOR_BORDER;
-      ctx.strokeRect(x + 0.5, y + 0.5, BOX - 1, BOX - 1);
-    }
-  }
-
-  // Draw ticks on checked cells in a second pass
-  ctx.strokeStyle = COLOR_TICK;
-  ctx.lineWidth = 1.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  for (let row = firstRow; row <= lastRow; row++) {
-    const y = row * CELL - scrollY;
-    for (let col = 0; col < COLS; col++) {
-      const i = row * COLS + col;
-      if (i >= TOTAL) break;
-      if (getBit(i)) {
-        drawTick(col * CELL, y, BOX);
-      }
-    }
-  }
-}
-
-// ── Scroll ────────────────────────────────────────────────────────────────────
-
-wrap.addEventListener('wheel', e => {
-  e.preventDefault();
-  scrollY += e.deltaY;
-  clampScroll();
-  scheduleDraw();
-}, { passive: false });
-
-let touchStartY = 0;
-wrap.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
-wrap.addEventListener('touchmove', e => {
-  e.preventDefault();
-  const dy = touchStartY - e.touches[0].clientY;
-  touchStartY = e.touches[0].clientY;
-  scrollY += dy; clampScroll(); scheduleDraw();
-}, { passive: false });
-
-// ── Click ────────────────────────────────────────────────────────────────────
-
-canvas.addEventListener('click', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top + scrollY;
-  const col = Math.floor(mx / CELL);
-  const row = Math.floor(my / CELL);
-  if (col >= COLS) return;
-  const i = row * COLS + col;
-  if (i >= TOTAL) return;
-  const newVal = getBit(i) ? 0 : 1;
-  setBit(i, newVal);
-  updateStats();
-  scheduleDraw();
-  addLog(`#${i.toLocaleString()} → ${newVal ? 'on' : 'off'}`, 'mine');
-  wsSend({ type: 'toggle', index: i, value: newVal });
-});
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
-
-const checkedEl     = document.getElementById('checked-count');
-const progressFill  = document.getElementById('progress-fill');
-const userEl        = document.getElementById('user-count');
-
-function updateStats() {
-  checkedEl.textContent = checkedCount.toLocaleString();
-  progressFill.style.width = (checkedCount / TOTAL * 100).toFixed(4) + '%';
-}
-
-// ── Bulk ops ──────────────────────────────────────────────────────────────────
-
-function checkAll() {
-  state.fill(0xff); checkedCount = TOTAL;
-  updateStats(); scheduleDraw();
-  wsSend({ type: 'bulk', action: 'check_all' });
-  addLog('all checked', 'mine'); showToast('all 1,000,000 checked');
-}
-function uncheckAll() {
-  state.fill(0); checkedCount = 0;
-  updateStats(); scheduleDraw();
-  wsSend({ type: 'bulk', action: 'uncheck_all' });
-  addLog('all unchecked', 'mine');
-}
-
-// ── Activity log + toast ──────────────────────────────────────────────────────
-
-const logEl = document.getElementById('activity-log');
-const toastEl = document.getElementById('toast');
-let toastTimer = null;
-
-function addLog(msg, type) {
-  const e = document.createElement('div');
-  e.className = 'log-entry ' + (type || '');
-  e.textContent = new Date().toLocaleTimeString('en', { hour12: false }) + ' ' + msg;
-  logEl.appendChild(e);
-  if (logEl.children.length > 60) logEl.removeChild(logEl.firstChild);
-  logEl.scrollTop = logEl.scrollHeight;
-}
-function showToast(msg) {
-  toastEl.textContent = msg;
-  toastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
-}
-
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-
-const statusDot   = document.getElementById('status-dot');
-const statusLabel = document.getElementById('status-label');
-let ws = null;
-
-function wsSend(data) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
-}
-
-function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  try {
-    if (ws) ws.close();
-    ws = new WebSocket(proto + '//' + location.host);
-    ws.onopen = () => {
-      statusDot.classList.add('connected');
-      statusLabel.textContent = 'connected';
-      addLog('ws connected', 'mine'); showToast('socket connected');
-    };
-    ws.onclose = () => {
-      statusDot.classList.remove('connected');
-      statusLabel.textContent = 'disconnected — retrying…';
-      addLog('ws disconnected');
-      setTimeout(connectWS, 3000);
-    };
-    ws.onerror = () => { statusLabel.textContent = 'demo mode'; addLog('ws error — demo mode'); };
-    ws.onmessage = e => { try { handleMsg(JSON.parse(e.data)); } catch {} };
-  } catch { statusLabel.textContent = 'demo mode'; }
-}
-
-// ── Server message handler ────────────────────────────────────────────────────
-//
-// Server → client message shapes:
-//
-//   { type: 'init',   state: number[],  users: number }   // packed bytes array
-//   { type: 'toggle', index: number,    value: 0|1 }
-//   { type: 'bulk',   action: string,   state?: number[] }
-//   { type: 'users',  count: number }
-//
-
-function handleMsg(msg) {
-  switch (msg.type) {
-    case 'init':
-      if (msg.state) {
-        checkedCount = 0;
-        for (let b = 0; b < state.length; b++) state[b] = msg.state[b] || 0;
-        for (let i = 0; i < TOTAL; i++) if (getBit(i)) checkedCount++;
-        scheduleDraw(); updateStats();
-      }
-      if (msg.users) userEl.textContent = msg.users;
-      break;
-
-    case 'toggle': {
-      const old = getBit(msg.index);
-      setBit(msg.index, msg.value);
-      updateStats(); scheduleDraw();
-      addLog(`remote #${msg.index.toLocaleString()} → ${msg.value ? 'on' : 'off'}`, 'remote');
-      break;
-    }
-
-    case 'bulk':
-      if (msg.action === 'check_all')   { state.fill(0xff); checkedCount = TOTAL; }
-      else if (msg.action === 'uncheck_all') { state.fill(0); checkedCount = 0; }
-      else if (msg.action === 'randomize' && msg.state) {
-        checkedCount = 0;
-        for (let b = 0; b < state.length; b++) state[b] = msg.state[b] || 0;
-        for (let i = 0; i < TOTAL; i++) if (getBit(i)) checkedCount++;
-      }
-      scheduleDraw(); updateStats();
-      addLog(`remote bulk: ${msg.action}`, 'remote');
-      break;
-
-    case 'users':
-      userEl.textContent = msg.count;
-      break;
-  }
-}
-
-// ── Boot ──────────────────────────────────────────────────────────────────────
-
-window.addEventListener('resize', resize);
-resize();
-uncheckAll();
-connectWS();
-
-window.checkAll = checkAll;
-window.uncheckAll = uncheckAll;
-window.randomize = randomize;
-window.connectWS = connectWS;
-</script>
+        // load more as user scrolls near bottom
+        window.addEventListener('scroll', () => {
+            const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 300
+            if (nearBottom) loadMore()
+        })
+    </script>
 </body>
 </html>
