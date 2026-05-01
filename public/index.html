@@ -1,145 +1,204 @@
 <!doctype html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>1,000,000 Checkboxes</title>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-      body {
-        background: #0d0d0d;
-        font-family: monospace;
-        color: #ccc;
-      }
+        body {
+            background: #0d0d0d;
+            font-family: monospace;
+            color: #ccc;
+        }
 
-      #header {
-        position: sticky;
-        top: 0;
-        background: #0d0d0d;
-        border-bottom: 1px solid #222;
-        padding: 12px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        z-index: 10;
-      }
+        #header {
+            position: sticky;
+            top: 0;
+            background: #0d0d0d;
+            border-bottom: 1px solid #222;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
 
-      #header h1 {
-        font-size: 14px;
-        color: #fff;
-      }
+        #header h1 {
+            font-size: 14px;
+            color: #fff;
+        }
 
-      #stats {
-        font-size: 12px;
-        color: #555;
-      }
+        #stats {
+            font-size: 12px;
+            color: #555;
+        }
 
-      #stats b {
-        color: #00ff88;
-      }
+        #stats b {
+            color: #00ff88;
+        }
 
-      #container {
-        padding: 16px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-      }
+        #container {
+            padding: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
 
-      input[type="checkbox"] {
-        display: none;
-      }
+        input[type="checkbox"] {
+            display: none;
+        }
 
-      label {
-        width: 18px;
-        height: 18px;
-        background: #1a1a1a;
-        border: 1px solid #2a2a2a;
-        border-radius: 3px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-      }
+        label {
+            width: 18px;
+            height: 18px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
 
-      label svg {
-        display: none;
-      }
+        label svg {
+            display: none;
+        }
 
-      input[type="checkbox"]:checked + label {
-        background: #00ff88;
-        border-color: #00cc66;
-      }
+        input[type="checkbox"]:checked+label {
+            background: #00ff88;
+            border-color: #00cc66;
+        }
 
-      input[type="checkbox"]:checked + label svg {
-        display: block;
-      }
+        input[type="checkbox"]:checked+label svg {
+            display: block;
+        }
 
-      #loader {
-        text-align: center;
-        padding: 20px;
-        font-size: 12px;
-        color: #444;
-      }
+        /* ── Toast notification ───────────────────────────────── */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a1a;
+            border: 1px solid #ff4444;
+            border-left: 3px solid #ff4444;
+            color: #ff9999;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 100;
+            max-width: 280px;
+            line-height: 1.5;
+
+            /* hidden by default */
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(8px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        #toast.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
     </style>
-  </head>
+</head>
 
-  <body>
+<body>
     <div id="header">
-      <h1>1,000,000 checkboxes</h1>
-      <div id="stats">checked: <b id="count">0</b> / 1,000,000</div>
+        <h1>1,000,000 checkboxes</h1>
+        <div id="stats">checked: <b id="count">0</b> / 1,000,000</div>
     </div>
 
     <div id="container"></div>
+
+    <!-- ── Toast element ── -->
+    <div id="toast">⚠ Too fast. Please wait before trying again.</div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
-      const container = document.getElementById("container");
-      const checkbox = 100;
-      const socket = io();
+        const container = document.getElementById("container");
+        const checkbox = 100;
+        const socket = io();
 
-      window.addEventListener("load", async () => {
-        const response = await fetch("/checkboxes", { method: "GET" });
-        const data = await response.json();
+        async function fetchCheckboxes() {
 
-        if (data && data.checkbox) {
-          data.checkbox.forEach((checked, index) => {
-            const id = `cb-${index}`;
+            const response = await fetch("/checkboxes", { method: "GET" });
+            const data = await response.json();
 
-            const input = document.createElement("input");
-            input.type = "checkbox";
-            input.id = id;
-            input.checked = checked;
+            if (data && data.checkboxes) {
+                data.checkboxes.forEach((checked, index) => {
+                    const id = `cb-${index}`;
 
-            const label = document.createElement("label");
-            label.setAttribute("for", id);
-            label.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10">
-                    <polyline points="1.5,5 4,7.5 8.5,2.5"
-                        stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                </svg>`;
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.id = id;
+                    input.checked = checked;
 
-            input.addEventListener("change", (event) => {
-              const checked = event.target.checked;
-              console.log("checkbox changed", { index, checked });
-              socket.emit("client:checkbox:changes", { index, checked });
-            });
+                    const label = document.createElement("label");
+                    label.setAttribute("for", id);
+                    label.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10">
+              <polyline points="1.5,5 4,7.5 8.5,2.5"
+                stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            </svg>`;
 
-            container.appendChild(input);
-            container.appendChild(label);
-          });
+                    input.addEventListener("change", (event) => {
+                        const checked = event.target.checked;
+                        console.log("checkbox changed", { index, checked });
+                        socket.emit("client:checkbox:changes", { index, checked });
+                        
+                    });
+
+                    container.appendChild(input);
+                    container.appendChild(label);
+                });
+            }
         }
-      });
 
-      socket.on("server:checkbox:change", (data) => {
-        console.log("socket server event", data);
-        const { index, checked } = data;
-        const check = document.getElementById(`cb-${index}`);
-        if (check) check.checked = checked;
-      });
+        window.addEventListener("load", fetchCheckboxes);
+
+        socket.on("server:rate-limit", (data) => {
+            // console.log("Rate limit event from server", data);
+            // alert(data.message);          // ← your original JS, untouched
+            const errMsg = data.error;
+        });
+
+        socket.on("server:checkbox:change", (data) => {
+            console.log("socket server event", data);
+            const { index, checked } = data;
+            const check = document.getElementById(`cb-${index}`);
+            if (check) check.checked = checked;
+        });
     </script>
-  </body>
+
+    <!-- ── Toast controller — pure JS added after your script ── -->
+    <script>
+        (function () {
+            const toast = document.getElementById("toast");
+            let hideTimer = null;
+
+            function showToast(message) {
+                toast.textContent = "⚠ " + message;
+                toast.classList.add("show");
+                clearTimeout(hideTimer);
+                hideTimer = setTimeout(() => toast.classList.remove("show"), 3000);
+            }
+
+            // Intercept the rate-limit event without touching your existing listener
+            socket.on("server:rate-limit", (data) => {
+                showToast(data.message);
+            });
+        })();
+    </script>
+</body>
+
 </html>
