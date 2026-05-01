@@ -1,204 +1,508 @@
 <!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>1,000,000 Checkboxes</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1,000,000 Checkboxes</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
-        body {
-            background: #0d0d0d;
-            font-family: monospace;
-            color: #ccc;
-        }
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --border:    #1e1e1e;
+      --border2:   #2a2a2a;
+      --checked:   #00ff88;
+      --checked2:  #00cc66;
+      --text:      #888;
+      --text2:     #444;
+      --red:       #ff4444;
+      --red-dim:   #ff9999;
+      --cb-size:   16px;
+      --cb-gap:    3px;
+      --row-h:     calc(var(--cb-size) + var(--cb-gap));
+      --header-h:  48px;
+    }
 
-        #header {
-            position: sticky;
-            top: 0;
-            background: #0d0d0d;
-            border-bottom: 1px solid #222;
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        #header h1 {
-            font-size: 14px;
-            color: #fff;
-        }
+    body {
+      background: var(--bg);
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-        #stats {
-            font-size: 12px;
-            color: #555;
-        }
+    /* ── Header ──────────────────────────────── */
+    #header {
+      height: var(--header-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      z-index: 20;
+    }
 
-        #stats b {
-            color: #00ff88;
-        }
+    #header h1 {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
 
-        #container {
-            padding: 16px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
+    #stats {
+      display: flex;
+      gap: 20px;
+      font-size: 11px;
+      color: var(--text2);
+    }
 
-        input[type="checkbox"] {
-            display: none;
-        }
+    #stats span { display: flex; align-items: center; gap: 6px; }
+    #stats b    { color: var(--checked); font-weight: 700; }
+    #stats i    { color: var(--text2); font-style: normal; }
 
-        label {
-            width: 18px;
-            height: 18px;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 3px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
+    /* connection dot */
+    #conn-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text2);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    #conn-dot.live  { background: var(--checked); box-shadow: 0 0 6px var(--checked); }
+    #conn-dot.dead  { background: var(--red); }
 
-        label svg {
-            display: none;
-        }
+    /* ── Scroll viewport ─────────────────────── */
+    #viewport {
+      flex: 1;
+      overflow-y: scroll;
+      overflow-x: hidden;
+      position: relative;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+    #viewport::-webkit-scrollbar       { width: 6px; }
+    #viewport::-webkit-scrollbar-track { background: transparent; }
+    #viewport::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-        input[type="checkbox"]:checked+label {
-            background: #00ff88;
-            border-color: #00cc66;
-        }
+    /* total height sentinel — JS sets its height to fake full scroll */
+    #scroll-height-sentinel {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1px;
+      pointer-events: none;
+    }
 
-        input[type="checkbox"]:checked+label svg {
-            display: block;
-        }
+    /* the visible strip of checkboxes */
+    #grid {
+      position: sticky;
+      top: 0;
+      padding: 12px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--cb-gap);
+      align-content: flex-start;
+      pointer-events: auto;
+    }
 
-        /* ── Toast notification ───────────────────────────────── */
-        #toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #1a1a1a;
-            border: 1px solid #ff4444;
-            border-left: 3px solid #ff4444;
-            color: #ff9999;
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-family: monospace;
-            z-index: 100;
-            max-width: 280px;
-            line-height: 1.5;
+    /* ── Checkbox items ──────────────────────── */
+    .cb-wrap {
+      position: relative;
+      width:  var(--cb-size);
+      height: var(--cb-size);
+      flex-shrink: 0;
+    }
 
-            /* hidden by default */
-            opacity: 0;
-            pointer-events: none;
-            transform: translateY(8px);
-            transition: opacity 0.2s ease, transform 0.2s ease;
-        }
+    .cb-wrap input { display: none; }
 
-        #toast.show {
-            opacity: 1;
-            pointer-events: auto;
-            transform: translateY(0);
-        }
-    </style>
+    .cb-wrap label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%; height: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.08s, border-color 0.08s, transform 0.06s;
+      user-select: none;
+    }
+
+    .cb-wrap label:active { transform: scale(0.88); }
+
+    .cb-wrap input:checked + label {
+      background: var(--checked);
+      border-color: var(--checked2);
+    }
+
+    .cb-wrap label svg { display: none; }
+    .cb-wrap input:checked + label svg { display: block; }
+
+    /* ── Scroll position indicator ───────────── */
+    #pos-pill {
+      position: fixed;
+      right: 20px;
+      bottom: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 10px;
+      color: var(--text2);
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 30;
+    }
+    #pos-pill.show { opacity: 1; }
+
+    /* ── Toast ───────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: #1a0a0a;
+      border: 1px solid var(--red);
+      border-top: 2px solid var(--red);
+      color: var(--red-dim);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      z-index: 50;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Loading bar ─────────────────────────── */
+    #loadbar {
+      position: fixed;
+      top: var(--header-h);
+      left: 0; right: 0;
+      height: 2px;
+      background: var(--checked);
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.2s, opacity 0.3s;
+      z-index: 40;
+      opacity: 0;
+    }
+    #loadbar.active { opacity: 1; }
+  </style>
 </head>
-
 <body>
-    <div id="header">
-        <h1>1,000,000 checkboxes</h1>
-        <div id="stats">checked: <b id="count">0</b> / 1,000,000</div>
-    </div>
 
-    <div id="container"></div>
+<div id="header">
+  <h1>1,000,000 checkboxes</h1>
+  <div id="stats">
+    <span><div id="conn-dot"></div> <i id="conn-label">connecting</i></span>
+    <span>checked <b id="count">0</b> / <b>1,000,000</b></span>
+    <span>viewing <b id="range-label">—</b></span>
+  </div>
+</div>
 
-    <!-- ── Toast element ── -->
-    <div id="toast">⚠ Too fast. Please wait before trying again.</div>
+<div id="viewport">
+  <div id="scroll-height-sentinel"></div>
+  <div id="grid"></div>
+</div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const container = document.getElementById("container");
-        const checkbox = 100;
-        const socket = io();
+<div id="pos-pill"></div>
+<div id="toast"></div>
+<div id="loadbar"></div>
 
-        async function fetchCheckboxes() {
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+const TOTAL        = 1_000_000;
+const WINDOW_SIZE  = 2_000;      // items fetched per request
+const OVERSCAN     = 200;        // extra items rendered beyond visible edge
+const CB_SIZE      = 16 + 3;     // px per checkbox (size + gap)
+const SCROLL_CHUNK = 1_000_000;  // fake total scroll px
 
-            const response = await fetch("/checkboxes", { method: "GET" });
-            const data = await response.json();
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const cache        = new Map();  // index → boolean, all known states
+const fetching     = new Set();  // window keys currently in-flight
+let checkedCount   = 0;
+let itemsPerRow    = 1;
+let currentFrom    = 0;          // first visible index
+let currentTo      = 0;         // last visible index
+let pillTimer      = null;
 
-            if (data && data.checkboxes) {
-                data.checkboxes.forEach((checked, index) => {
-                    const id = `cb-${index}`;
+// ─────────────────────────────────────────────
+// ELEMENTS
+// ─────────────────────────────────────────────
+const grid        = document.getElementById('grid');
+const viewport    = document.getElementById('viewport');
+const sentinel    = document.getElementById('scroll-height-sentinel');
+const countEl     = document.getElementById('count');
+const rangeEl     = document.getElementById('range-label');
+const connDot     = document.getElementById('conn-dot');
+const connLabel   = document.getElementById('conn-label');
+const toastEl     = document.getElementById('toast');
+const loadbar     = document.getElementById('loadbar');
+const posPill     = document.getElementById('pos-pill');
 
-                    const input = document.createElement("input");
-                    input.type = "checkbox";
-                    input.id = id;
-                    input.checked = checked;
+// ─────────────────────────────────────────────
+// SOCKET
+// ─────────────────────────────────────────────
+const socket = io();
 
-                    const label = document.createElement("label");
-                    label.setAttribute("for", id);
-                    label.innerHTML = `<svg width="10" height="10" viewBox="0 0 10 10">
-              <polyline points="1.5,5 4,7.5 8.5,2.5"
-                stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-            </svg>`;
+socket.on('connect', () => {
+  connDot.className   = 'live';
+  connLabel.textContent = 'live';
+});
+socket.on('disconnect', () => {
+  connDot.className   = 'dead';
+  connLabel.textContent = 'offline';
+});
 
-                    input.addEventListener("change", (event) => {
-                        const checked = event.target.checked;
-                        console.log("checkbox changed", { index, checked });
-                        socket.emit("client:checkbox:changes", { index, checked });
-                        
-                    });
+socket.on('server:checkbox:change', ({ index, checked }) => {
+  const wasChecked = cache.get(index);
+  const isNew      = wasChecked === undefined;
 
-                    container.appendChild(input);
-                    container.appendChild(label);
-                });
-            }
-        }
+  // update cache
+  cache.set(index, checked);
 
-        window.addEventListener("load", fetchCheckboxes);
+  // update count
+  if (!isNew) {
+    if (wasChecked && !checked) checkedCount--;
+    if (!wasChecked && checked) checkedCount++;
+  } else if (checked) {
+    checkedCount++;
+  }
+  countEl.textContent = checkedCount.toLocaleString();
 
-        socket.on("server:rate-limit", (data) => {
-            // console.log("Rate limit event from server", data);
-            // alert(data.message);          // ← your original JS, untouched
-            const errMsg = data.error;
-        });
+  // patch DOM if this index is currently rendered
+  const el = document.getElementById(`cb-${index}`);
+  if (el && el.checked !== checked) el.checked = checked;
+});
 
-        socket.on("server:checkbox:change", (data) => {
-            console.log("socket server event", data);
-            const { index, checked } = data;
-            const check = document.getElementById(`cb-${index}`);
-            if (check) check.checked = checked;
-        });
-    </script>
+socket.on('server:rate-limit', ({ message }) => showToast(message));
 
-    <!-- ── Toast controller — pure JS added after your script ── -->
-    <script>
-        (function () {
-            const toast = document.getElementById("toast");
-            let hideTimer = null;
+// ─────────────────────────────────────────────
+// GEOMETRY — recalculate on resize
+// ─────────────────────────────────────────────
+function calcGeometry() {
+  const w      = grid.clientWidth - 32; // minus padding
+  itemsPerRow  = Math.max(1, Math.floor(w / CB_SIZE));
+  const rows   = Math.ceil(TOTAL / itemsPerRow);
+  const totalH = rows * CB_SIZE;
+  sentinel.style.height = totalH + 'px';
+}
 
-            function showToast(message) {
-                toast.textContent = "⚠ " + message;
-                toast.classList.add("show");
-                clearTimeout(hideTimer);
-                hideTimer = setTimeout(() => toast.classList.remove("show"), 3000);
-            }
+// ─────────────────────────────────────────────
+// FETCH — get a window of checkbox states
+// ─────────────────────────────────────────────
+function windowKey(from) {
+  return Math.floor(from / WINDOW_SIZE) * WINDOW_SIZE;
+}
 
-            // Intercept the rate-limit event without touching your existing listener
-            socket.on("server:rate-limit", (data) => {
-                showToast(data.message);
-            });
-        })();
-    </script>
+async function fetchWindow(from) {
+  const key = windowKey(from);
+  if (fetching.has(key)) return;
+  // already cached — every index in this window is known
+  if (cache.has(key) && cache.has(Math.min(key + WINDOW_SIZE - 1, TOTAL - 1))) return;
+
+  fetching.add(key);
+  setLoadbar(true);
+
+  const to = Math.min(key + WINDOW_SIZE - 1, TOTAL - 1);
+  try {
+    const res  = await fetch(`/checkboxes?from=${key}&to=${to}`);
+    const data = await res.json();
+
+    let localChecked = 0;
+    data.checkboxes.forEach((val, i) => {
+      const idx = key + i;
+      if (!cache.has(idx)) {
+        cache.set(idx, val);
+        if (val) localChecked++;
+      }
+    });
+    checkedCount += localChecked;
+    countEl.textContent = checkedCount.toLocaleString();
+  } catch (e) {
+    console.error('fetch failed', e);
+  } finally {
+    fetching.delete(key);
+    setLoadbar(false);
+  }
+}
+
+// ─────────────────────────────────────────────
+// RENDER — build DOM for visible range
+// ─────────────────────────────────────────────
+function render(from, to) {
+  from = Math.max(0, from);
+  to   = Math.min(TOTAL - 1, to);
+
+  if (from === currentFrom && to === currentTo) return;
+  currentFrom = from;
+  currentTo   = to;
+
+  rangeEl.textContent = `${from.toLocaleString()}–${to.toLocaleString()}`;
+
+  // Reuse existing nodes — build a map of what's rendered
+  const existing = new Map();
+  for (const wrap of grid.children) {
+    const idx = parseInt(wrap.dataset.idx, 10);
+    existing.set(idx, wrap);
+  }
+
+  const needed = new Set();
+  for (let i = from; i <= to; i++) needed.add(i);
+
+  // Remove nodes no longer needed
+  for (const [idx, node] of existing) {
+    if (!needed.has(idx)) node.remove();
+  }
+
+  // Build fragment for new nodes
+  const frag = document.createDocumentFragment();
+  const toAppend = [];
+
+  for (let i = from; i <= to; i++) {
+    if (existing.has(i)) continue; // already in DOM
+    const wrap  = document.createElement('div');
+    wrap.className  = 'cb-wrap';
+    wrap.dataset.idx = i;
+
+    const input = document.createElement('input');
+    input.type  = 'checkbox';
+    input.id    = `cb-${i}`;
+    input.checked = cache.get(i) ?? false;
+
+    const label = document.createElement('label');
+    label.setAttribute('for', `cb-${i}`);
+    label.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10">
+      <polyline points="1.5,5 4,7.5 8.5,2.5"
+        stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>`;
+
+    input.addEventListener('change', (e) => {
+      const checked = e.target.checked;
+      const prev    = cache.get(i) ?? false;
+      cache.set(i, checked);
+      checkedCount += checked ? 1 : -1;
+      countEl.textContent = checkedCount.toLocaleString();
+      socket.emit('client:checkbox:changes', { index: i, checked });
+    });
+
+    wrap.appendChild(input);
+    wrap.appendChild(label);
+    toAppend.push({ idx: i, node: wrap });
+    frag.appendChild(wrap);
+  }
+
+  // Insert in sorted order — find the right position
+  // Simplest: clear and rebuild if order changed significantly
+  const firstChild = grid.firstElementChild;
+  const firstIdx   = firstChild ? parseInt(firstChild.dataset.idx, 10) : Infinity;
+
+  if (toAppend.length > 0 && toAppend[0].idx < firstIdx) {
+    // prepend — insert fragment before first child
+    grid.insertBefore(frag, grid.firstChild);
+  } else {
+    grid.appendChild(frag);
+  }
+
+  // Sort grid children by index (keeps wrap order correct after inserts)
+  const children = [...grid.children].sort(
+    (a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx)
+  );
+  children.forEach(c => grid.appendChild(c));
+}
+
+// ─────────────────────────────────────────────
+// SCROLL HANDLER
+// ─────────────────────────────────────────────
+function onScroll() {
+  const scrollTop    = viewport.scrollTop;
+  const totalRows    = Math.ceil(TOTAL / itemsPerRow);
+  const totalHeight  = totalRows * CB_SIZE;
+  const progress     = scrollTop / (totalHeight - viewport.clientHeight || 1);
+  const midIndex     = Math.floor(progress * TOTAL);
+
+  const halfWindow   = Math.floor(WINDOW_SIZE / 2);
+  const from         = Math.max(0, midIndex - halfWindow - OVERSCAN);
+  const to           = Math.min(TOTAL - 1, midIndex + halfWindow + OVERSCAN);
+
+  // fetch surrounding windows
+  fetchWindow(from);
+  if (to - from > WINDOW_SIZE) fetchWindow(to - WINDOW_SIZE);
+
+  render(from, to);
+  showPill(from, to);
+}
+
+// ─────────────────────────────────────────────
+// UI HELPERS
+// ─────────────────────────────────────────────
+function showToast(msg) {
+  toastEl.textContent = '⚠ ' + msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(() => toastEl.classList.remove('show'), 2500);
+}
+
+function setLoadbar(on) {
+  if (on) {
+    loadbar.classList.add('active');
+    loadbar.style.transform = 'scaleX(0.6)';
+  } else {
+    loadbar.style.transform = 'scaleX(1)';
+    setTimeout(() => {
+      loadbar.style.transform = 'scaleX(0)';
+      loadbar.classList.remove('active');
+    }, 300);
+  }
+}
+
+function showPill(from, to) {
+  posPill.textContent = `#${from.toLocaleString()} – #${to.toLocaleString()}`;
+  posPill.classList.add('show');
+  clearTimeout(pillTimer);
+  pillTimer = setTimeout(() => posPill.classList.remove('show'), 1200);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+async function init() {
+  calcGeometry();
+  await fetchWindow(0);
+  render(0, Math.min(TOTAL - 1, WINDOW_SIZE - 1));
+}
+
+window.addEventListener('resize', () => {
+  calcGeometry();
+  onScroll();
+});
+
+let scrollRaf = null;
+viewport.addEventListener('scroll', () => {
+  cancelAnimationFrame(scrollRaf);
+  scrollRaf = requestAnimationFrame(onScroll);
+}, { passive: true });
+
+init();
+</script>
 </body>
-
 </html>
